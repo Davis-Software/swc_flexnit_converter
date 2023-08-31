@@ -6,9 +6,9 @@ if __name__ == "__main__":
     try:
         socketio.run(
             app,
-            host=config["HOST"],
-            port=config["PORT"],
-            debug=config["DEBUG"],
+            host=config.get("HOST"),
+            port=config.get("PORT"),
+            debug=config.get_bool("DEBUG"),
             allow_unsafe_werkzeug=True
         )
     except Exception as e:

@@ -1,7 +1,8 @@
 import os
+
 from application import socketio, cache
 
-from converter import convert_file
+from converter import destinations, encoders, encoder_presets, encoder_tunes, encoder_profiles, encoder_levels, convert_file
 
 
 @socketio.on("info")
@@ -26,16 +27,52 @@ def delete(file_uuid):
         os.remove(cache.get_file(file_uuid).path)
         cache.remove_file(file_uuid)
 
+    socketio.emit("files", info())
+    socketio.emit("output", output())
+
     return info()
 
 
+@socketio.on("destinations")
+def get_destinations():
+    return destinations()
+
+
+@socketio.on("encoders")
+def get_encoders():
+    return encoders()
+
+
+@socketio.on("encoder_presets")
+def get_encoder_presets(encoder):
+    return encoder_presets(encoder)
+
+
+@socketio.on("encoder_tunes")
+def get_encoder_tunes(encoder):
+    return encoder_tunes(encoder)
+
+
+@socketio.on("encoder_profiles")
+def get_encoder_profiles(encoder):
+    return encoder_profiles(encoder)
+
+
+@socketio.on("encoder_levels")
+def get_encoder_levels(encoder):
+    return encoder_levels(encoder)
+
+
 @socketio.on("convert")
-def convert(file_uuid, transcode_audio, transcode_video, accelerator, encoder_preset, output_format):
-    return convert_file(
-        file_uuid,
-        transcode_audio,
-        transcode_video,
-        accelerator,
-        encoder_preset,
-        output_format
-    ).to_json()
+def convert(data):
+    convert_file(
+        data["uuid"],
+        data["destination"],
+        data["encoder"],
+        data["encoderPreset"],
+        data["encoderTune"],
+        data["encoderProfile"],
+        data["encoderLevel"],
+        data["quality"]
+    )
+    socketio.emit("output", output())

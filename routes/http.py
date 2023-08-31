@@ -1,8 +1,7 @@
 import os
 import uuid
-import tempfile
 
-from application import app, cache
+from application import app, socketio, cache, TEMP_FOLDER
 from models.file_model import File
 
 from flask import request, send_file, redirect, render_template
@@ -24,7 +23,7 @@ def upload():
     file_uuid = str(uuid.uuid4())
     file_type = file.filename.split(".").pop()
     file_name = f"{file_uuid}.{file_type}"
-    file_location = os.path.join(tempfile.gettempdir(), file_name)
+    file_location = os.path.join(TEMP_FOLDER, file_name)
 
     file_model = File(
         file_uuid,
@@ -37,6 +36,7 @@ def upload():
     file.save(file_location)
     cache.add_file(file_model)
 
+    socketio.emit("files", cache.get_file_list_json())
     return file_model.to_json()
 
 

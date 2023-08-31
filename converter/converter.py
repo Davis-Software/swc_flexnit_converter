@@ -1,96 +1,129 @@
 import os
 import uuid
-import tempfile
+import subprocess
 
 from models.file_model import File
 
-from application import cache, config, socketio
-from ffmpeg import FFmpeg
+from application import cache, socketio, TEMP_FOLDER
+from .converter_info import HANDBRAKE, destination_container
 
 
-def convert_file(file_uuid, transcode_audio, transcode_video, accelerator, encoder_preset, output_format):
-    ffmpeg = config.get("FFMPEG_PATH")
-    hw_accel = config.get_bool("FFMPEG_NVENC")
+def emit(channel, data):
+    socketio.emit(channel, data)
 
-    accelerator = accelerator if (accelerator in
-                                  ["cuda", "nvdec", "vdpau", "vaapi"]
-                                  ) else "cuda"
-    encoder_preset = encoder_preset if (encoder_preset in
-                                        ["slow", "medium", "fast", "hp", "hq", "bd", "ll", "llhq", "llhp", "lossless",
-                                         "losslesshp"]
-                                        ) else "slow"
 
+def convert_file(
+    file_uuid,
+    container,
+    encoder,
+    encoder_preset,
+    encoder_tune,
+    encoder_profile,
+    encoder_level,
+    quality
+):
     file = cache.get_file(file_uuid)
 
-    if file is None:
-        return
+    if not file or not os.path.exists(file.path):
+        raise FileNotFoundError(f"File {file_uuid} does not exist.")
 
-    output_name = ".".join(file.name.split(".")[:-1])
-    if transcode_audio or transcode_video:
-        output_name += "_tc_"
-    if transcode_audio:
-        output_name += "a"
-    if transcode_video:
-        output_name += "v"
-    output_name += f".{output_format}"
+    emit("state", "preparing")
+    # clear for the socket queue to be sent
+    socketio.sleep(.1)
 
-    ffmpeg = FFmpeg(ffmpeg).option("y").option("loglevel", "quiet")
-
-    if hw_accel:
-        ffmpeg.option("hwaccel", accelerator)
-        ffmpeg.option("hwaccel_output_format", "cuda")
-
-    ffmpeg.input(file.path)
-
-    opts = {}
-    if not transcode_audio:
-        opts["c:a"] = "copy"
-
-    if not transcode_video:
-        opts["c:v"] = "copy"
-    else:
-        opts["c:v"] = "h264_nvenc"
-        opts["preset"] = encoder_preset
-
+    container_file = destination_container(container)
     file_uuid = str(uuid.uuid4())
-    file_path = os.path.join(tempfile.gettempdir(), f"{file_uuid}.{output_format}")
+    new_file = f"{file_uuid}.{container_file}"
+    new_name = f"{file.name}-tc.{container_file}"
 
-    file = File(
+    destination_file = File(
         file_uuid,
-        output_name,
-        0,
-        output_format,
-        file_path
+        new_name,
+        -1,
+        container_file,
+        os.path.join(
+            TEMP_FOLDER,
+            new_file
+        )
     )
 
-    ffmpeg.output(file_path, opts)
+    handbrake_opts = [
+        HANDBRAKE,
+        "-i", file.path,
+        "--main-feature",
+        "-o", destination_file.path,
+        "-f", container,
+        "--no-markers",
+        "-O",
+        "--align-av",
+        "-e", encoder
+    ]
 
-    @ffmpeg.on("start")
-    def ffmpeg_start(args):
-        print(f"Converting - Start: {args}")
+    if encoder_preset != "":
+        handbrake_opts.extend(["--encoder-preset", encoder_preset])
 
-    @ffmpeg.on("progress")
-    def ffmpeg_progress(progress):
-        socketio.emit("progress", {
-            "file_uuid": file_uuid,
-            "progress": progress
-        })
-        print(f"Converting - Progress: {progress}%")
+    if encoder_tune != "":
+        handbrake_opts.extend(["--encoder-tune", encoder_tune])
 
-    @ffmpeg.on("stderr")
-    def ffmpeg_error(error):
-        print(f"Converting - Error: {error}")
+    if encoder_profile != "":
+        handbrake_opts.extend(["--encoder-profile", encoder_profile])
 
-    @ffmpeg.on("completed")
-    def ffmpeg_completed():
-        print("Converting - Finished")
-        cache.set_output_file(file)
-        socketio.emit("progress", {
-            "file_uuid": file_uuid,
-            "progress": 100
-        })
+    if encoder_level != "":
+        handbrake_opts.extend(["--encoder-level", encoder_level])
 
-    ffmpeg.execute()
+    handbrake_opts.extend(["--quality", str(quality)])
 
-    return file
+    handbrake_opts.extend([
+        "--all-audio",
+    ])
 
+    handbrake = subprocess.Popen(
+        handbrake_opts,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        universal_newlines=True
+    )
+
+    for stdout in handbrake.stdout:
+
+        # HandBrake has exited
+        if "HandBrake has exited" in stdout or len(stdout) == 0:
+            break
+
+        elif "Encoding: task" in stdout:
+            progress = 0
+            speed = -1
+            eta = "tbd"
+
+            try:
+                progress = float(stdout.split(", ")[1].split(" %")[0])
+            except:
+                pass
+
+            if "(" in stdout:
+                try:
+                    speed = float(stdout.split("(")[1].split(" fps")[0])
+                except:
+                    pass
+
+                try:
+                    eta = stdout.split("ETA ")[1].split(")[")[0]
+                except:
+                    pass
+
+            emit("progress", {
+                "progress": progress,
+                "speed": speed,
+                "eta": eta
+            })
+            # clear for the socket queue to be sent
+            socketio.sleep(.1)
+
+    emit("state", "normal")
+
+    if cache.get_output_file():
+        os.remove(cache.get_output_file().path)
+        cache.clear_output()
+
+    destination_file.size = os.path.getsize(destination_file.path)
+    cache.set_output_file(destination_file)

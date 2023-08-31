@@ -49,7 +49,7 @@ class Cache:
         return self.__output_file_cache is not None
 
     def get_output_file_json(self) -> dict:
-        return self.__output_file_cache.to_json() if self.has_output_file() else {}
+        return self.__output_file_cache.to_json() if self.has_output_file() else None
 
     def clear_output(self):
         self.__output_file_cache = None
