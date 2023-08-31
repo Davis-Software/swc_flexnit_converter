@@ -3,3 +3,4 @@ flask_socketio
 python-ffmpeg
 werkzeug~=2.3.7
 simple-websocket
+tqdm
