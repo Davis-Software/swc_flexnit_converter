@@ -1,7 +1,7 @@
 import os
-from __init__ import socketio, cache
+from application import socketio, cache
 
-from converter.converter import convert_file
+from converter import convert_file
 
 
 @socketio.on("info")

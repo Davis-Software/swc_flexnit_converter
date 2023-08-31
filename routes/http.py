@@ -2,7 +2,7 @@ import os
 import uuid
 import tempfile
 
-from __init__ import app, cache
+from application import app, cache
 from models.file_model import File
 
 from flask import request, send_file, redirect, render_template

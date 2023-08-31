@@ -2,3 +2,5 @@
 venv/
 static/js/bundle
 templates/index.html
+build/
+dist/

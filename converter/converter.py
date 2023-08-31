@@ -4,7 +4,7 @@ import tempfile
 
 from models.file_model import File
 
-from __init__ import cache, config, socketio
+from application import cache, config, socketio
 from ffmpeg import FFmpeg
 
 
