@@ -1,0 +1,15 @@
+{% extends "bases/base.html" %}
+
+{% block body %}
+    <div id="root">
+        <div class="pt-5 d-flex justify-content-center">
+            <div class="spinner-border" role="status">
+                <span class="sr-only">Loading...</span>
+            </div>
+        </div>
+    </div>
+
+    {# placed react script here for optimized loading times #}
+    
+    <script src="/static/js/bundle/main.bundle.js"></script>
+{% endblock %}

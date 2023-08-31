@@ -33,8 +33,8 @@ module.exports = {
         new HtmlWebpackPlugin({
             publicPath: "/static/js/bundle",
             scriptLoading: "blocking",
-            template: __dirname + "/../../../../templates/pages/index.template.html",
-            filename: __dirname + "/../../../../templates/pages/index.html",
+            template: __dirname + "/../../../../templates/index.template.html",
+            filename: __dirname + "/../../../../templates/index.html",
             inject: false,
             minify: !devMode
         })
