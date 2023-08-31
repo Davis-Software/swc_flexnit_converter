@@ -5,7 +5,17 @@ import tempfile
 from __init__ import app, cache
 from models.file_model import File
 
-from flask import request, send_file
+from flask import request, send_file, redirect, render_template
+
+
+@app.route("/")
+def index():
+    return redirect("/av-conv")
+
+
+@app.route("/av-conv")
+def av_conv():
+    return render_template("index.html")
 
 
 @app.route("/upload", methods=["GET", "POST"])
